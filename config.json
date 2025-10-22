@@ -1,0 +1,6 @@
+{
+    "url": "http://192.168.15.9:7575/web/base/logindisp?tenant=ASSET_EAM01",
+    "user": "ACOSTA",
+    "password": "Asset@25",
+    "org": "ASSET_EAM01"
+}
