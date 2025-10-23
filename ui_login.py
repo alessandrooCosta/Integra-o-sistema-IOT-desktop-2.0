@@ -7,8 +7,9 @@ from PyQt6.QtCore import Qt
 from eam_session_manager import EAMConfig, get_valid_session
 
 class LoginWidget(QWidget):
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, main_window):
+        super().__init__(main_window)
+        self.main_window = main_window
 
         self.ed_server = QLineEdit()
         self.ed_port = QLineEdit()
@@ -21,7 +22,7 @@ class LoginWidget(QWidget):
 
         self.ed_pass.setEchoMode(QLineEdit.EchoMode.Password)
         self.ed_port.setPlaceholderText("(opcional)")
-        self.ed_server.setPlaceholderText("ex.: us1.eam.hxgnsmartcloud.com ou http://192.168.15.9:7575")
+        self.ed_server.setPlaceholderText("ex.: https://us1.eam.hxgnsmartcloud.com/")
         self.ed_org.setPlaceholderText("ex.: C001")
         self.ed_tenant.setPlaceholderText("ex.: IBNQI1720580460_DEM")
 
@@ -54,7 +55,6 @@ class LoginWidget(QWidget):
             QMessageBox.warning(self, "Campos obrigatórios", "Preencha todos os campos (Port é opcional).")
             return
 
-        # Ajuste: se quiser usar API Key na Cloud, basta adicionar aqui:
         cfg = EAMConfig(
             server=self.ed_server.text().strip(),     # ex.: "https://us1.eam.hxgnsmartcloud.com" ou "http://192.168.15.9:7575"
             tenant=self.ed_tenant.text().strip(),     # ex.: "IBNQI1720580460_DEM" ou "ASSET_EAM01"
@@ -69,5 +69,7 @@ class LoginWidget(QWidget):
             sid = get_valid_session(cfg)  # usa cache ou faz login
             self.ed_token.setText(sid)
             QMessageBox.information(self, "OK", "Sessão válida e salva.")
+            self.main_window.dashboard_widget.initialize_dashboard(cfg, sid)
+            self.main_window.setCurrentWidget(self.main_window.dashboard_widget)
         except Exception as e:
             QMessageBox.critical(self, "Erro", str(e))

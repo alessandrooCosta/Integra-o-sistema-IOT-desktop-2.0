@@ -62,12 +62,19 @@ def testar_conexao(url, user, password, org):
 # ===============================================================
 # ⚙️ Função principal: criar ordem de serviço (OS)
 # ===============================================================
-def criar_ordem_servico(local, nivel, timestamp, cfg):
+def criar_ordem_servico(local, nivel, timestamp, cfg, sid=None):
     """
     Cria uma Ordem de Serviço no EAM via SOAP.
+
+    Args:
+        local (str): Localização do evento.
+        nivel (float): Nível detectado.
+        timestamp (str): Timestamp do evento.
+        cfg (EAMConfig): Objeto de configuração do EAM.
+        sid (str, optional): ID da sessão para autenticação. Se omitido, usa user/pass.
     """
     descricao = f"Alerta: nível de água {nivel}mm em {local}"[:80]
-    url_soap = _gerar_endpoint_soap(cfg.get("url"))
+    url_soap = _gerar_endpoint_soap(cfg.server)
 
     print(f"📡 Enviando requisição SOAP para {url_soap} ...")
 
@@ -82,11 +89,12 @@ def criar_ordem_servico(local, nivel, timestamp, cfg):
         <soapenv:Header>
             <wsse:Security>
                 <wsse:UsernameToken>
-                    <wsse:Username>{cfg['user']}</wsse:Username>
-                    <wsse:Password>{cfg['password']}</wsse:Password>
+                    <wsse:Username>{cfg.user}</wsse:Username>
+                    <wsse:Password>{cfg.password}</wsse:Password>
                 </wsse:UsernameToken>
             </wsse:Security>
-            <Organization xmlns="http://schemas.datastream.net/headers">{cfg['org']}</Organization>
+            <Organization xmlns="http://schemas.datastream.net/headers">{cfg.org}</Organization>
+            <Tenant xmlns="http://schemas.datastream.net/headers">{cfg.tenant}</Tenant>
         </soapenv:Header>
 
         <soapenv:Body>
@@ -95,9 +103,10 @@ def criar_ordem_servico(local, nivel, timestamp, cfg):
                     <mf:WORKORDERID auto_generated="true">
                         <mf:JOBNUM></mf:JOBNUM>
                         <mf:ORGANIZATIONID entity="User">
-                            <mf:ORGANIZATIONCODE>{cfg['org']}</mf:ORGANIZATIONCODE>
+                            <mf:ORGANIZATIONCODE>{cfg.org}</mf:ORGANIZATIONCODE>
                         </mf:ORGANIZATIONID>
                         <mf:DESCRIPTION>{descricao}</mf:DESCRIPTION>
+                        <mf:UDFNOTE01>{descricao}</mf:UDFNOTE01>
                     </mf:WORKORDERID>
 
                     <mf:STATUS entity="User">
@@ -106,7 +115,7 @@ def criar_ordem_servico(local, nivel, timestamp, cfg):
                     </mf:STATUS>
 
                     <mf:EQUIPMENTID>
-                        <mf:EQUIPMENTCODE>AR-001</mf:EQUIPMENTCODE>
+                        <mf:EQUIPMENTCODE>AA-001</mf:EQUIPMENTCODE>
                         <mf:ORGANIZATIONID entity="Organization">
                             <mf:ORGANIZATIONCODE>*</mf:ORGANIZATIONCODE>
                         </mf:ORGANIZATIONID>
@@ -115,7 +124,7 @@ def criar_ordem_servico(local, nivel, timestamp, cfg):
                     <mf:DEPARTMENTID>
                         <mf:DEPARTMENTCODE>*</mf:DEPARTMENTCODE>
                         <mf:ORGANIZATIONID entity="Group">
-                            <mf:ORGANIZATIONCODE>{cfg['org']}</mf:ORGANIZATIONCODE>
+                            <mf:ORGANIZATIONCODE>{cfg.org}</mf:ORGANIZATIONCODE>
                         </mf:ORGANIZATIONID>
                     </mf:DEPARTMENTID>
 
@@ -135,6 +144,12 @@ def criar_ordem_servico(local, nivel, timestamp, cfg):
         "Accept": "text/xml",
         "SOAPAction": ""
     }
+
+    # Se o EAM usa o SID como um cookie de sessão (comum), adicione-o aqui.
+    # Verifique a documentação da sua API para o nome correto do cookie (ex: JSESSIONID).
+    if sid:
+        # Exemplo: headers['Cookie'] = f"JSESSIONID={sid}"
+        pass  # Implemente a forma correta de usar o SID aqui
 
     try:
         response = requests.post(
