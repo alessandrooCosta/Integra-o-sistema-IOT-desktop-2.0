@@ -8,7 +8,7 @@ from eam_session_manager import EAMConfig, get_valid_session
 
 class LoginWidget(QWidget):
     def __init__(self, main_window):
-        super().__init__(main_window)
+        super().__init__()
         self.main_window = main_window
 
         self.ed_server = QLineEdit()
@@ -22,9 +22,10 @@ class LoginWidget(QWidget):
 
         self.ed_pass.setEchoMode(QLineEdit.EchoMode.Password)
         self.ed_port.setPlaceholderText("(opcional)")
-        self.ed_server.setPlaceholderText("ex.: https://us1.eam.hxgnsmartcloud.com/")
+        self.ed_server.setPlaceholderText("ex.: us1.eam.hxgnsmartcloud.com ou http://192.168.15.9:7575")
         self.ed_org.setPlaceholderText("ex.: C001")
-        self.ed_tenant.setPlaceholderText("ex.: IBNQI1720580460_DEM")
+        self.ed_tenant.setText("IBNQI1720580460_DEM") # Valor fixo
+        self.ed_tenant.setReadOnly(True) # Campo não editável
 
         btn_save = QPushButton("Entrar")
         btn_save.clicked.connect(self.on_save)
@@ -45,31 +46,43 @@ class LoginWidget(QWidget):
         self.setWindowTitle("Configuração de Conexão - EAM")
 
     def on_save(self):
+        # 🔧 Captura os campos de entrada
         server = self.ed_server.text().strip()
-        org    = self.ed_org.text().strip()
+        org = self.ed_org.text().strip()
         tenant = self.ed_tenant.text().strip()
-        user   = self.ed_user.text().strip()
-        passwd = self.ed_pass.text().strip()
+        user = self.ed_user.text().strip()
+        password = self.ed_pass.text().strip()
 
-        if not all([server, org, tenant, user, passwd]):
+        # 🧩 Validação dos campos obrigatórios
+        if not all([server, org, tenant, user, password]):
             QMessageBox.warning(self, "Campos obrigatórios", "Preencha todos os campos (Port é opcional).")
             return
 
+        # 🔹 Monta a configuração para conexão com o EAM
         cfg = EAMConfig(
-            server=self.ed_server.text().strip(),     # ex.: "https://us1.eam.hxgnsmartcloud.com" ou "http://192.168.15.9:7575"
-            tenant=self.ed_tenant.text().strip(),     # ex.: "IBNQI1720580460_DEM" ou "ASSET_EAM01"
-            org=self.ed_org.text().strip(),           # ex.: "C001"
-            user=self.ed_user.text().strip(),         # ex.: "ACOSTA"
-            password=self.ed_pass.text().strip(),
-            proxy_url="http://localhost:8000/eamproxy"  # se cloud; deixe None no on-prem
+            server=server,
+            tenant=tenant,
+            org=org,
+            user=user,
+            password=password,
+            proxy_url="http://localhost:8000/eamproxy"  # ou None se for on-prem
         )
 
-
         try:
-            sid = get_valid_session(cfg)  # usa cache ou faz login
+            # 🔐 Autentica e obtém o Session ID (SID)
+            sid = get_valid_session(cfg)
             self.ed_token.setText(sid)
             QMessageBox.information(self, "OK", "Sessão válida e salva.")
-            self.main_window.dashboard_widget.initialize_dashboard(cfg, sid)
-            self.main_window.setCurrentWidget(self.main_window.dashboard_widget)
+
+            # Inicializa os dashboards com os dados da sessão
+            if hasattr(self.main_window, 'dashboard_simulador'):
+                self.main_window.dashboard_simulador.initialize_dashboard(cfg, sid)
+            if hasattr(self.main_window, 'dashboard_dispositivo'):
+                self.main_window.dashboard_dispositivo.initialize_dashboard(cfg, sid)
+
+            # Após o login, exibe o menu principal
+            if hasattr(self.main_window, 'show_menu'):
+                self.main_window.show_menu()
+
         except Exception as e:
             QMessageBox.critical(self, "Erro", str(e))

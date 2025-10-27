@@ -1,0 +1,123 @@
+#include <WiFi.h>
+#include <HTTPClient.h>
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+
+Adafruit_MPU6050 mpu;
+
+// --- CONFIGURAÇÕES DE REDE ---
+const char* ssid = "VIVOFIBRA-WIFI6-8808";     // nome da sua rede
+const char* password = "3M7PNTTbU3P3bM4";             // senha do Wi-Fi
+const char* serverUrl = "http://192.168.15.20:8080/event";  // IP do App FastAPI
+
+// --- DEFINIÇÕES DE PINOS ---
+#define LED_VERDE 26
+#define LED_VERMELHO 27
+#define BOTAO_FALHA 25
+
+// --- LIMITES DE SENSOR ---
+const float LIMITE_MINIMO = 9.5;
+const float LIMITE_MAXIMO = 10.5;
+
+// --- VARIÁVEIS DE CONTROLE ---
+bool modoParadaManual = false;
+unsigned long ultimoDebounce = 0;
+const unsigned long INTERVALO_DEBOUNCE = 50;
+bool estadoAnteriorBotao = HIGH;
+
+unsigned long ultimoEnvio = 0;
+const unsigned long intervaloEnvio = 5000; // 5 segundos entre verificações
+
+String ultimoStatus = "ok"; // Armazena último status enviado
+
+void setup() {
+  Serial.begin(115200);
+  pinMode(LED_VERDE, OUTPUT);
+  pinMode(LED_VERMELHO, OUTPUT);
+  pinMode(BOTAO_FALHA, INPUT_PULLUP);
+
+  // Conecta Wi-Fi
+  Serial.print("🔌 Conectando ao Wi-Fi");
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+  Serial.println("\n✅ Wi-Fi conectado!");
+  Serial.print("📡 IP local: ");
+  Serial.println(WiFi.localIP());
+
+  // Inicializa sensor
+  Wire.begin(21, 22);
+  if (!mpu.begin()) {
+    Serial.println("❌ MPU6050 não encontrado!");
+    while (1);
+  }
+  Serial.println("✅ Sensor inicializado!");
+  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpu.setFilterBandwidth(MPU6050_BAND_5_HZ);
+}
+
+void loop() {
+  // Leitura do botão (toggle)
+  bool estadoAtualBotao = digitalRead(BOTAO_FALHA);
+  if (estadoAnteriorBotao == HIGH && estadoAtualBotao == LOW &&
+      (millis() - ultimoDebounce > INTERVALO_DEBOUNCE)) {
+    modoParadaManual = !modoParadaManual;
+    ultimoDebounce = millis();
+    Serial.println(modoParadaManual ? "⚠️ Falha manual ativada!" : "✅ Falha manual desativada!");
+  }
+  estadoAnteriorBotao = estadoAtualBotao;
+
+  // Leitura do sensor
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+  float intensidade = sqrt(a.acceleration.x * a.acceleration.x +
+                           a.acceleration.y * a.acceleration.y +
+                           a.acceleration.z * a.acceleration.z);
+
+  bool falhaPorSensor = (intensidade < LIMITE_MINIMO || intensidade > LIMITE_MAXIMO);
+  bool falhaDetectada = modoParadaManual || falhaPorSensor;
+
+  String statusAtual = falhaDetectada ? "falha" : "ok";
+
+  // LEDs indicativos
+  if (falhaDetectada) {
+    digitalWrite(LED_VERDE, LOW);
+    digitalWrite(LED_VERMELHO, HIGH);
+  } else {
+    digitalWrite(LED_VERDE, HIGH);
+    digitalWrite(LED_VERMELHO, LOW);
+  }
+
+  // Envio periódico de status
+  if (millis() - ultimoEnvio > intervaloEnvio || statusAtual != ultimoStatus) {
+    ultimoEnvio = millis();
+    enviarStatus(statusAtual);
+    ultimoStatus = statusAtual;
+  }
+
+  delay(500);
+}
+
+void enviarStatus(String status) {
+  if (WiFi.status() == WL_CONNECTED) {
+    HTTPClient http;
+    http.begin(serverUrl);
+    http.addHeader("Content-Type", "application/json");
+
+    String payload = "{\"device\":\"MOTOR_A\",\"status\":\"" + status + "\"}";
+    int code = http.POST(payload);
+
+    Serial.print("📤 Enviando status: ");
+    Serial.println(payload);
+    Serial.print("📬 Resposta HTTP: ");
+    Serial.println(code);
+
+    http.end();
+  } else {
+    Serial.println("⚠️ Wi-Fi desconectado, tentando reconectar...");
+    WiFi.begin(ssid, password);
+  }
+}

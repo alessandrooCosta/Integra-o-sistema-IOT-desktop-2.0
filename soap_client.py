@@ -1,6 +1,7 @@
 import requests
 from urllib.parse import urlparse
-
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ===============================================================
 # 🔧 Função auxiliar: gerar endpoint SOAP automaticamente
 # ===============================================================
@@ -106,7 +107,6 @@ def criar_ordem_servico(local, nivel, timestamp, cfg, sid=None):
                             <mf:ORGANIZATIONCODE>{cfg.org}</mf:ORGANIZATIONCODE>
                         </mf:ORGANIZATIONID>
                         <mf:DESCRIPTION>{descricao}</mf:DESCRIPTION>
-                        <mf:UDFNOTE01>{descricao}</mf:UDFNOTE01>
                     </mf:WORKORDERID>
 
                     <mf:STATUS entity="User">

@@ -5,7 +5,7 @@ from datetime import datetime
 
 from PyQt6.QtCore import QObject, pyqtSignal
 from PyQt6.QtWidgets import (
-    QWidget, QVBoxLayout, QLabel, QTextEdit, QPushButton
+    QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton
 )
 from soap_client import criar_ordem_servico
 
@@ -33,9 +33,16 @@ class DashboardWindow(QWidget):
         self.btn_start = QPushButton("▶️ Iniciar Simulador")
         self.btn_start.clicked.connect(self.toggle_simulador)
 
+        self.btn_sair = QPushButton("Sair")
+        self.btn_sair.clicked.connect(self._on_sair_clicked)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.btn_start)
+        button_layout.addWidget(self.btn_sair)
+
         layout.addWidget(self.label_status)
         layout.addWidget(self.text_log)
-        layout.addWidget(self.btn_start)
+        layout.addLayout(button_layout)
         self.setLayout(layout)
 
     def initialize_dashboard(self, cfg, sid):
@@ -45,8 +52,15 @@ class DashboardWindow(QWidget):
         """
         self.cfg = cfg
         self.sid = sid
+        self.text_log.clear()
         self.text_log.append("✅ Dashboard inicializado e pronto para o monitoramento.")
         self.text_log.append(f"🔑 Sessão (SID) ativa: {sid[:10]}...")
+
+    def _on_sair_clicked(self):
+        """Notifica a janela principal para voltar à tela de login."""
+        if self.running:
+            self.toggle_simulador()  # Para o simulador se estiver rodando
+        self.main_window.show_login_screen()
 
     def toggle_simulador(self):
         if not self.running:
