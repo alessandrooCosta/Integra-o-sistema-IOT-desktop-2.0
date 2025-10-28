@@ -1,0 +1,22 @@
+# --- Core backend / API ---
+fastapi==0.115.0
+uvicorn==0.30.1
+httpx==0.27.0
+
+# --- SOAP / HTTP communication ---
+requests==2.31.0
+xmltodict==0.13.0
+
+# --- Desktop GUI (PyQt) ---
+PyQt6==6.6.1
+
+# --- Utilitários e estrutura ---
+python-dotenv==1.0.1
+pydantic==2.7.4
+
+# --- Async e threads (usados pelo FastAPI e EAM session) ---
+anyio==4.3.0
+sniffio==1.3.1
+
+# --- (Opcional) Log e debug ---
+colorama==0.4.6
