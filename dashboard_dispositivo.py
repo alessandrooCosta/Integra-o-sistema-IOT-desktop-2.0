@@ -9,6 +9,7 @@ from PyQt6.QtWidgets import (
 )
 
 from soap_client import criar_ordem_servico
+from iot_monitor import IoTMonitor
 
 
 class WorkerSignals(QObject):
@@ -54,10 +55,16 @@ class DashboardDispositivo(QWidget):
         self.text_log.append("✅ Dashboard conectado ao servidor FastAPI.")
         self.text_log.append(f"🔑 Sessão (SID): {sid[:10]}...")
 
+        # O IoTMonitor é iniciado, mas não interfere no loop principal
+        self.iot_monitor = IoTMonitor(cfg, sid, self)
+        self.iot_monitor.start()
+
     def _on_sair_clicked(self):
         if self.running:
             self.toggle_monitoramento()
         self.main_window.show_login_screen()
+        if hasattr(self, "iot_monitor"):
+            self.iot_monitor.stop()
 
     # -------------------------------------------------------------
     def toggle_monitoramento(self):
@@ -73,16 +80,21 @@ class DashboardDispositivo(QWidget):
 
     # -------------------------------------------------------------
     def _loop_monitor(self):
+        """
+        Loop que consulta o status do ESP32 (na nuvem via Render)
+        e cria uma OS automática quando o dispositivo fica offline.
+        """
         signals = WorkerSignals()
         signals.update_status.connect(self.label_status.setText)
         signals.log_message.connect(self.text_log.append)
 
-        api_url = f"http://localhost:8000/status/{self.device_id}"
+        # 🌐 Endereço da API IoT na nuvem (Render)
+        api_url = f"http://fastapi-6wmq.onrender.com/status/{self.device_id}"
         falha_detectada = False
 
         while self.running:
             try:
-                r = requests.get(api_url, timeout=3)
+                r = requests.get(api_url, timeout=5)
                 if r.status_code == 200:
                     data = r.json()
                     online = data.get("online", False)
@@ -111,7 +123,6 @@ class DashboardDispositivo(QWidget):
                                 signals.log_message.emit("✅ OS criada automaticamente por desconexão.\n")
                             else:
                                 signals.log_message.emit("⚠️ Falha ao criar OS de desconexão.\n")
-
                 else:
                     signals.log_message.emit(f"⚠️ Erro HTTP {r.status_code} ao consultar status.")
             except Exception as e:

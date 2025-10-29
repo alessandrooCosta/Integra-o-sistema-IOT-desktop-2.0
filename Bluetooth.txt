@@ -1,0 +1,101 @@
+#include <BluetoothSerial.h>
+#include <ArduinoJson.h>   // opcional (pode montar string na mão)
+#include <Wire.h>
+#include <Adafruit_MPU6050.h>
+#include <Adafruit_Sensor.h>
+
+BluetoothSerial BT;
+Adafruit_MPU6050 mpu;
+
+#define LED_VERDE 26
+#define LED_VERMELHO 27
+#define BOTAO_FALHA 25
+
+enum Estado { NORMAL, FALHA, RECUPERADO };
+Estado estadoAtual = NORMAL;
+
+unsigned long ultimaFalha = 0;
+const unsigned long intervaloReenvio = 30000; // 30s
+
+void btSendRaw(const String& s) {
+  if (BT.hasClient()) {
+    BT.println(s); // linha finalizada com \n
+  }
+}
+
+void btSendEvent(const char* status) {
+  // payload idêntico ao HTTP
+  String json = String("{\"device\":\"MOTOR_A\",\"status\":\"") + status + "\"}";
+  btSendRaw(json);
+}
+
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(LED_VERDE, OUTPUT);
+  pinMode(LED_VERMELHO, OUTPUT);
+  pinMode(BOTAO_FALHA, INPUT_PULLUP);
+
+  // Bluetooth SPP
+  if (!BT.begin("ESP32-MOTOR_A")) { // nome visível no Windows
+    Serial.println("❌ Falha ao iniciar Bluetooth");
+    while (1) delay(1000);
+  }
+  Serial.println("✅ Bluetooth SPP iniciado (ESP32-MOTOR_A)");
+
+  // Sensor
+  Wire.begin(21, 22);
+  if (!mpu.begin()) {
+    Serial.println("❌ MPU6050 não encontrado!");
+    while (1);
+  }
+  Serial.println("✅ Sensor inicializado!");
+
+  btSendEvent("online");
+}
+
+void loop() {
+  // Exemplo de leitura do sensor (igual ao seu)
+  sensors_event_t a, g, temp;
+  mpu.getEvent(&a, &g, &temp);
+  float intensidade = sqrt(
+    a.acceleration.x * a.acceleration.x +
+    a.acceleration.y * a.acceleration.y +
+    a.acceleration.z * a.acceleration.z
+  );
+
+  bool falhaManual = digitalRead(BOTAO_FALHA) == LOW;
+  bool falhaDetectada = (falhaManual || intensidade < 9.5 || intensidade > 10.5);
+
+  if (falhaDetectada && estadoAtual == NORMAL) {
+    estadoAtual = FALHA;
+    digitalWrite(LED_VERDE, LOW);
+    digitalWrite(LED_VERMELHO, HIGH);
+    btSendEvent("falha");
+    ultimaFalha = millis();
+  }
+
+  if (falhaDetectada && estadoAtual == FALHA &&
+      millis() - ultimaFalha > intervaloReenvio) {
+    btSendEvent("falha");
+    ultimaFalha = millis();
+  }
+
+  if (!falhaDetectada && estadoAtual == FALHA) {
+    estadoAtual = RECUPERADO;
+    btSendEvent("ok");
+    digitalWrite(LED_VERDE, HIGH);
+    digitalWrite(LED_VERMELHO, LOW);
+  }
+
+  // (Opcional) ler comandos do desktop:
+  if (BT.available()) {
+    String cmd = BT.readStringUntil('\n');
+    cmd.trim();
+    if (cmd == "PING") {
+      btSendRaw("{\"echo\":\"PONG\"}");
+    }
+  }
+
+  delay(300);
+}

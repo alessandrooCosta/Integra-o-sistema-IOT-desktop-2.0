@@ -65,7 +65,7 @@ class LoginWidget(QWidget):
             org=org,
             user=user,
             password=password,
-            proxy_url="http://localhost:8000/eamproxy"  # ou None se for on-prem
+            proxy_url="http://localhost:8080/eamproxy"  # ou None se for on-prem
         )
 
         try:

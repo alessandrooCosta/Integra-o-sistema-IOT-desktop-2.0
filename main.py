@@ -4,10 +4,12 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QStackedWidget,
     QWidget, QVBoxLayout, QPushButton, QLabel
 )
-
+from proxy_runner import start_proxy
+start_proxy()
 from ui_login import LoginWidget
 from dashboard_simulador import DashboardWindow
 from dashboard_dispositivo import DashboardDispositivo
+from dashboard_bluetooth import DashboardBluetooth
 
 
 class MenuInicial(QWidget):
@@ -26,12 +28,16 @@ class MenuInicial(QWidget):
         self.btn_simulador = QPushButton("💧 Dashboard Simulador (Teste Local)")
         self.btn_simulador.clicked.connect(self.abrir_simulador)
 
-        self.btn_dispositivo = QPushButton("📡 Dashboard Dispositivo (ESP32)")
+        self.btn_dispositivo = QPushButton("📡 Dashboard ESP32 - Wifi")
         self.btn_dispositivo.clicked.connect(self.abrir_dispositivo)
+
+        self.btn_bluetooth = QPushButton(" Dashboard ESP32 - Bluetooth)")
+        self.btn_bluetooth.clicked.connect(self.abrir_bluetooth)
 
         layout.addWidget(self.label)
         layout.addWidget(self.btn_simulador)
         layout.addWidget(self.btn_dispositivo)
+        layout.addWidget(self.btn_bluetooth)
         layout.addStretch()
         self.setLayout(layout)
 
@@ -41,6 +47,8 @@ class MenuInicial(QWidget):
     def abrir_dispositivo(self):
         self.main_window.setCurrentWidget(self.main_window.dashboard_dispositivo)
 
+    def abrir_bluetooth(self):
+        self.main_window.setCurrentWidget(self.main_window.dashboard_bluetooth)
 
 class MainWindow(QMainWindow):
     """
@@ -59,12 +67,14 @@ class MainWindow(QMainWindow):
         self.menu_widget = MenuInicial(self)
         self.dashboard_simulador = DashboardWindow(self)
         self.dashboard_dispositivo = DashboardDispositivo(self)
+        self.dashboard_bluetooth = DashboardBluetooth(self)
 
         # Adiciona as telas
         self.stacked_widget.addWidget(self.login_widget)
         self.stacked_widget.addWidget(self.menu_widget)
         self.stacked_widget.addWidget(self.dashboard_simulador)
         self.stacked_widget.addWidget(self.dashboard_dispositivo)
+        self.stacked_widget.addWidget(self.dashboard_bluetooth)
 
         # Tela inicial → Login
         self.show_login_screen()
