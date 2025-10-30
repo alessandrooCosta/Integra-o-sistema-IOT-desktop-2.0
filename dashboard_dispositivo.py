@@ -47,6 +47,12 @@ class DashboardDispositivo(QWidget):
         layout.addLayout(button_layout)
         self.setLayout(layout)
 
+        with open("assets/login_style.qss", "r", encoding="utf-8") as f:
+            self.setStyleSheet(f.read())
+
+
+
+
     # -------------------------------------------------------------
     def initialize_dashboard(self, cfg, sid):
         self.cfg = cfg

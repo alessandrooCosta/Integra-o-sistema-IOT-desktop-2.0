@@ -1,7 +1,7 @@
 # ui_login.py
 from __future__ import annotations
 from PyQt6.QtWidgets import (
-    QWidget, QLabel, QLineEdit, QPushButton, QFormLayout, QVBoxLayout, QMessageBox
+    QWidget, QLabel, QLineEdit, QPushButton, QFormLayout, QVBoxLayout, QHBoxLayout, QSpacerItem, QSizePolicy, QMessageBox
 )
 from PyQt6.QtCore import Qt
 from eam_session_manager import EAMConfig, get_valid_session
@@ -11,6 +11,7 @@ class LoginWidget(QWidget):
         super().__init__()
         self.main_window = main_window
 
+        # 🔹 Campos primeiro
         self.ed_server = QLineEdit()
         self.ed_port = QLineEdit()
         self.ed_org = QLineEdit()
@@ -18,19 +19,21 @@ class LoginWidget(QWidget):
         self.ed_user = QLineEdit()
         self.ed_pass = QLineEdit()
         self.ed_token = QLineEdit()
-        self.ed_token.setReadOnly(True)
 
+        self.ed_token.setReadOnly(True)
         self.ed_pass.setEchoMode(QLineEdit.EchoMode.Password)
         self.ed_port.setPlaceholderText("(opcional)")
         self.ed_server.setPlaceholderText("ex.: us1.eam.hxgnsmartcloud.com ou http://192.168.15.9:7575")
         self.ed_org.setPlaceholderText("ex.: C001")
-        self.ed_tenant.setText("IBNQI1720580460_DEM") # Valor fixo
-        self.ed_tenant.setReadOnly(True) # Campo não editável
+        self.ed_tenant.setPlaceholderText("ex.: IBNQI1720580460_DEM")
 
         btn_save = QPushButton("Entrar")
         btn_save.clicked.connect(self.on_save)
 
+        # 🔹 Depois o layout
         form = QFormLayout()
+        form.setFormAlignment(Qt.AlignmentFlag.AlignHCenter)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         form.addRow(QLabel("Server:"), self.ed_server)
         form.addRow(QLabel("Port: (Opcional)"), self.ed_port)
         form.addRow(QLabel("Organization:"), self.ed_org)
@@ -39,11 +42,22 @@ class LoginWidget(QWidget):
         form.addRow(QLabel("Password:"), self.ed_pass)
         form.addRow(QLabel("Token de Autenticação:"), self.ed_token)
 
-        layout = QVBoxLayout()
-        layout.addLayout(form)
-        layout.addWidget(btn_save, alignment=Qt.AlignmentFlag.AlignLeft)
-        self.setLayout(layout)
+        main_layout = QVBoxLayout()
+        main_layout.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        hbox = QHBoxLayout()
+        hbox.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        hbox.addWidget(btn_save)
+
+        main_layout.addLayout(form)
+        main_layout.addLayout(hbox)
+        self.setLayout(main_layout)
         self.setWindowTitle("Configuração de Conexão - EAM")
+
+        # 🔹 Aplica QSS
+        with open("assets/login_style.qss", "r", encoding="utf-8") as f:
+            self.setStyleSheet(f.read())
+
 
     def on_save(self):
         # 🔧 Captura os campos de entrada

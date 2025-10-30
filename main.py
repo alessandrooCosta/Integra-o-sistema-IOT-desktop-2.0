@@ -4,6 +4,7 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QStackedWidget,
     QWidget, QVBoxLayout, QPushButton, QLabel
 )
+from PyQt6.QtCore import Qt
 from proxy_runner import start_proxy
 start_proxy()
 from ui_login import LoginWidget
@@ -11,35 +12,39 @@ from dashboard_simulador import DashboardWindow
 from dashboard_dispositivo import DashboardDispositivo
 from dashboard_bluetooth import DashboardBluetooth
 
-
 class MenuInicial(QWidget):
-    """
-    Tela inicial para escolher qual dashboard abrir.
-    """
     def __init__(self, main_window):
         super().__init__()
         self.main_window = main_window
 
-        layout = QVBoxLayout()
-
+        # 🔹 Label título
         self.label = QLabel("Selecione o modo de operação:")
-        self.label.setStyleSheet("font-size: 16px; font-weight: bold;")
+        self.label.setObjectName("menuTitle")
 
+        # 🔹 Botões principais
         self.btn_simulador = QPushButton("💧 Dashboard Simulador (Teste Local)")
+        self.btn_dispositivo = QPushButton("📡 Dashboard ESP32 - Wi-Fi")
+        self.btn_bluetooth = QPushButton("🔷 Dashboard ESP32 - Bluetooth")
+
+        # 🔹 Conexões
         self.btn_simulador.clicked.connect(self.abrir_simulador)
-
-        self.btn_dispositivo = QPushButton("📡 Dashboard ESP32 - Wifi")
         self.btn_dispositivo.clicked.connect(self.abrir_dispositivo)
-
-        self.btn_bluetooth = QPushButton(" Dashboard ESP32 - Bluetooth)")
         self.btn_bluetooth.clicked.connect(self.abrir_bluetooth)
 
-        layout.addWidget(self.label)
-        layout.addWidget(self.btn_simulador)
-        layout.addWidget(self.btn_dispositivo)
-        layout.addWidget(self.btn_bluetooth)
+        # 🔹 Layout vertical centralizado
+        layout = QVBoxLayout()
+        layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.setSpacing(20)
+        layout.addWidget(self.label, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.btn_simulador, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.btn_dispositivo, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.btn_bluetooth, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addStretch()
         self.setLayout(layout)
+
+        # 🔹 Aplica QSS (mesmo estilo global)
+        with open("assets/login_style.qss", "r", encoding="utf-8") as f:
+            self.setStyleSheet(f.read())
 
     def abrir_simulador(self):
         self.main_window.setCurrentWidget(self.main_window.dashboard_simulador)
