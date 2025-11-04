@@ -25,11 +25,14 @@ class MenuInicial(QWidget):
         self.btn_simulador = QPushButton("💧 Dashboard Simulador (Teste Local)")
         self.btn_dispositivo = QPushButton("📡 Dashboard ESP32 - Wi-Fi")
         self.btn_bluetooth = QPushButton("🔷 Dashboard ESP32 - Bluetooth")
+        self.btn_sair = QPushButton("Sair")
+
 
         # 🔹 Conexões
         self.btn_simulador.clicked.connect(self.abrir_simulador)
         self.btn_dispositivo.clicked.connect(self.abrir_dispositivo)
         self.btn_bluetooth.clicked.connect(self.abrir_bluetooth)
+        self.btn_sair.clicked.connect(self._on_sair_clicked)
 
         # 🔹 Layout vertical centralizado
         layout = QVBoxLayout()
@@ -39,6 +42,7 @@ class MenuInicial(QWidget):
         layout.addWidget(self.btn_simulador, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.btn_dispositivo, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(self.btn_bluetooth, alignment=Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(self.btn_sair, alignment=Qt.AlignmentFlag.AlignCenter)
         layout.addStretch()
         self.setLayout(layout)
 
@@ -54,6 +58,9 @@ class MenuInicial(QWidget):
 
     def abrir_bluetooth(self):
         self.main_window.setCurrentWidget(self.main_window.dashboard_bluetooth)
+
+    def _on_sair_clicked(self):
+        self.main_window.show_login_screen()
 
 class MainWindow(QMainWindow):
     """

@@ -24,7 +24,7 @@ class DashboardDispositivo(QWidget):
         self.cfg = None
         self.sid = None
         self.running = False
-        self.device_id = "MOTOR_A"
+        self.device_id = "Maquina_01"
 
         layout = QVBoxLayout()
 
@@ -35,7 +35,7 @@ class DashboardDispositivo(QWidget):
         self.btn_start = QPushButton("▶️ Iniciar Monitoramento")
         self.btn_start.clicked.connect(self.toggle_monitoramento)
 
-        self.btn_sair = QPushButton("Sair")
+        self.btn_sair = QPushButton("Voltar")
         self.btn_sair.clicked.connect(self._on_sair_clicked)
 
         button_layout = QHBoxLayout()
@@ -66,11 +66,10 @@ class DashboardDispositivo(QWidget):
         self.iot_monitor.start()
 
     def _on_sair_clicked(self):
-        if self.running:
-            self.toggle_monitoramento()
-        self.main_window.show_login_screen()
-        if hasattr(self, "iot_monitor"):
+        """Retorna ao menu principal."""
+        if self.iot_monitor:
             self.iot_monitor.stop()
+        self.main_window.show_menu()
 
     # -------------------------------------------------------------
     def toggle_monitoramento(self):
@@ -86,15 +85,13 @@ class DashboardDispositivo(QWidget):
 
     # -------------------------------------------------------------
     def _loop_monitor(self):
-        """
-        Loop que consulta o status do ESP32 (na nuvem via Render)
+        """Loop que consulta o status do ESP32 (na nuvem via Render)
         e cria uma OS automática quando o dispositivo fica offline.
         """
         signals = WorkerSignals()
         signals.update_status.connect(self.label_status.setText)
         signals.log_message.connect(self.text_log.append)
 
-        # 🌐 Endereço da API IoT na nuvem (Render)
         api_url = f"http://fastapi-6wmq.onrender.com/status/{self.device_id}"
         falha_detectada = False
 
@@ -104,18 +101,18 @@ class DashboardDispositivo(QWidget):
                 if r.status_code == 200:
                     data = r.json()
                     online = data.get("online", False)
-                    status = data.get("status", "sem dados")
+                    status = data.get("falha", "sem falha")
+                    segmentos = data.get("segmentos", [])
                     ts = data.get("last_update", "")
 
                     if online:
-                        if falha_detectada:
-                            signals.log_message.emit(f"✅ {self.device_id} voltou a operar.\n")
-                            falha_detectada = False
-                        signals.update_status.emit(f"✅ {self.device_id} online ({status})")
+                        msg = f"✅ {self.device_id} online | {status} | segmentos={segmentos}"
+                        falha_detectada = False
                     else:
+                        msg = f"⚠️ {self.device_id} offline ou sem dados."
+
                         if not falha_detectada:
                             falha_detectada = True
-                            signals.update_status.emit(f"⚠️ {self.device_id} offline!")
                             signals.log_message.emit(f"[{datetime.now():%H:%M:%S}] 🚨 {self.device_id} sem comunicação!")
 
                             sucesso = criar_ordem_servico(
@@ -129,9 +126,13 @@ class DashboardDispositivo(QWidget):
                                 signals.log_message.emit("✅ OS criada automaticamente por desconexão.\n")
                             else:
                                 signals.log_message.emit("⚠️ Falha ao criar OS de desconexão.\n")
+
+                    signals.update_status.emit(msg)
+
                 else:
                     signals.log_message.emit(f"⚠️ Erro HTTP {r.status_code} ao consultar status.")
             except Exception as e:
                 signals.log_message.emit(f"❌ Erro de conexão: {e}")
 
             time.sleep(5)
+

@@ -3,28 +3,21 @@
 #include <Wire.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
-
 Adafruit_MPU6050 mpu;
-
 // -------- Configuração de Rede --------
 const char* ssid = "Wokwi-GUEST";
 const char* password = "";
-
 // ✅ Use HTTP (sem HTTPS) — funciona no Wokwi
 const char* serverUrl = "https://fastapi-6wmq.onrender.com/event";
-
 // -------- Pinos --------
 #define LED_VERDE 26
 #define LED_VERMELHO 27
 #define BOTAO_FALHA 25
-
 // -------- Controle --------
 enum Estado { NORMAL, FALHA, RECUPERADO };
 Estado estadoAtual = NORMAL;
-
 unsigned long ultimaFalha = 0;
 const unsigned long intervaloReenvio = 30000; // 30 segundos
-
 // -------- Protótipo --------
 void enviarEvento(String status);
 
@@ -86,7 +79,6 @@ void loop() {
     digitalWrite(LED_VERDE, HIGH);
     digitalWrite(LED_VERMELHO, LOW);
   }
-
   delay(500);
 }
 
