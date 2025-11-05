@@ -92,7 +92,7 @@ class DashboardDispositivo(QWidget):
         signals.update_status.connect(self.label_status.setText)
         signals.log_message.connect(self.text_log.append)
 
-        api_url = f"http://fastapi-6wmq.onrender.com/status/{self.device_id}"
+        api_url = f"https://fastapi-6wmq.onrender.com/status/{self.device_id}"
         falha_detectada = False
 
         while self.running:
@@ -101,33 +101,35 @@ class DashboardDispositivo(QWidget):
                 if r.status_code == 200:
                     data = r.json()
                     online = data.get("online", False)
-                    status = data.get("falha", "sem falha")
-                    segmentos = data.get("segmentos", [])
+                    falha = data.get("falha", "sem falha")
+                    setor = data.get("setor", "")
                     ts = data.get("last_update", "")
 
+                    # 🔹 Atualiza status
                     if online:
-                        msg = f"✅ {self.device_id} online | {status} | segmentos={segmentos}"
-                        falha_detectada = False
-                    else:
-                        msg = f"⚠️ {self.device_id} offline ou sem dados."
+                        msg = f"✅ {self.device_id} online | {falha} | setor={setor}"
+                        signals.update_status.emit(msg)
 
-                        if not falha_detectada:
-                            falha_detectada = True
-                            signals.log_message.emit(f"[{datetime.now():%H:%M:%S}] 🚨 {self.device_id} sem comunicação!")
+                        # 🔸 Cria OS somente se for uma falha "real"
+                        if falha.startswith("falha_") and falha != "falha_vibracao":
+                            signals.log_message.emit(f"🚨 Falha detectada: {falha} em {setor}")
 
                             sucesso = criar_ordem_servico(
-                                local="Equipamento desconectado",
+                                local=f"{self.device_id} - {setor}",
                                 nivel=0,
                                 timestamp=ts or datetime.now().isoformat(),
                                 cfg=self.cfg,
                                 sid=self.sid
                             )
-                            if sucesso:
-                                signals.log_message.emit("✅ OS criada automaticamente por desconexão.\n")
-                            else:
-                                signals.log_message.emit("⚠️ Falha ao criar OS de desconexão.\n")
 
-                    signals.update_status.emit(msg)
+                            if sucesso:
+                                signals.log_message.emit("✅ OS criada automaticamente por falha.\n")
+                            else:
+                                signals.log_message.emit("⚠️ Falha ao criar OS.\n")
+
+                    else:
+                        msg = f"⚠️ {self.device_id} offline (sem dados)"
+                        signals.update_status.emit(msg)
 
                 else:
                     signals.log_message.emit(f"⚠️ Erro HTTP {r.status_code} ao consultar status.")
@@ -135,4 +137,5 @@ class DashboardDispositivo(QWidget):
                 signals.log_message.emit(f"❌ Erro de conexão: {e}")
 
             time.sleep(5)
+
 

@@ -19,8 +19,7 @@ class IoTMonitor:
         self.dashboard = dashboard
         self.interval = interval
         self.running = False
-        self.render_api = "https://fastapi-6wmq.onrender.com/status/MOTOR_A"
-
+        self.render_api = "https://fastapi-6wmq.onrender.com/status/Maquina_01"
     def start(self):
         """Inicia a thread de monitoramento"""
         if not self.running:
@@ -42,12 +41,13 @@ class IoTMonitor:
                 resp = requests.get(self.render_api, timeout=10)
                 if resp.status_code == 200:
                     data = resp.json()
-                    status = data.get("status", "desconhecido")
+                    status = data.get("falha", "sem_falha")
+                    setor = data.get("setor", "")
                     online = data.get("online", False)
                     timestamp = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
 
-                    self.dashboard.label_status.setText(f"🌐 {status.upper()} ({timestamp})")
-                    self.dashboard.text_log.append(f"[{timestamp}] STATUS → {status} | online={online}")
+                    self.dashboard.label_status.setText(f"🌐 {status.upper()} | {setor}")
+                    self.dashboard.text_log.append(f"[{timestamp}] FALHA → {status} | SETOR={setor} | online={online}")
 
                     if status == "falha":
                         self.dashboard.text_log.append("🚨 Falha detectada! Criando O.S. no EAM...")
