@@ -3,7 +3,7 @@ import time
 from datetime import datetime
 import requests
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PyQt6.QtCore import QObject, pyqtSignal, Qt
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTextEdit, QPushButton
 )
@@ -15,6 +15,7 @@ from iot_monitor import IoTMonitor
 class WorkerSignals(QObject):
     update_status = pyqtSignal(str)
     log_message = pyqtSignal(str)
+    update_connection = pyqtSignal(bool)
 
 
 class DashboardDispositivo(QWidget):
@@ -28,10 +29,17 @@ class DashboardDispositivo(QWidget):
 
         layout = QVBoxLayout()
 
+        # 🔹 Indicador visual de status
+        self.connection_label = QLabel("🔴 Dispositivo offline")
+        self.connection_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.connection_label.setStyleSheet("font-size: 16px; font-weight: bold; color: red;")
+
+        # 🔹 Texto de status e log
         self.label_status = QLabel("📡 Aguardando dados do dispositivo ESP32...")
         self.text_log = QTextEdit()
         self.text_log.setReadOnly(True)
 
+        # 🔹 Botões
         self.btn_start = QPushButton("▶️ Iniciar Monitoramento")
         self.btn_start.clicked.connect(self.toggle_monitoramento)
 
@@ -42,16 +50,15 @@ class DashboardDispositivo(QWidget):
         button_layout.addWidget(self.btn_start)
         button_layout.addWidget(self.btn_sair)
 
+        layout.addWidget(self.connection_label)
         layout.addWidget(self.label_status)
         layout.addWidget(self.text_log)
         layout.addLayout(button_layout)
         self.setLayout(layout)
 
+        # 🔹 Estilo
         with open("assets/login_style.qss", "r", encoding="utf-8") as f:
             self.setStyleSheet(f.read())
-
-
-
 
     # -------------------------------------------------------------
     def initialize_dashboard(self, cfg, sid):
@@ -61,14 +68,17 @@ class DashboardDispositivo(QWidget):
         self.text_log.append("✅ Dashboard conectado ao servidor FastAPI.")
         self.text_log.append(f"🔑 Sessão (SID): {sid[:10]}...")
 
-        # O IoTMonitor é iniciado, mas não interfere no loop principal
+        # Inicia monitor secundário (não interfere no loop principal)
         self.iot_monitor = IoTMonitor(cfg, sid, self)
         self.iot_monitor.start()
 
     def _on_sair_clicked(self):
         """Retorna ao menu principal."""
-        if self.iot_monitor:
+        if hasattr(self, "iot_monitor"):
             self.iot_monitor.stop()
+        if self.running:
+            self.running = False
+            self.btn_start.setText("▶️ Iniciar Monitoramento")
         self.main_window.show_menu()
 
     # -------------------------------------------------------------
@@ -85,15 +95,13 @@ class DashboardDispositivo(QWidget):
 
     # -------------------------------------------------------------
     def _loop_monitor(self):
-        """Loop que consulta o status do ESP32 (na nuvem via Render)
-        e cria uma OS automática quando o dispositivo fica offline.
-        """
         signals = WorkerSignals()
         signals.update_status.connect(self.label_status.setText)
         signals.log_message.connect(self.text_log.append)
+        signals.update_connection.connect(self._update_connection_label)
 
         api_url = f"https://fastapi-6wmq.onrender.com/status/{self.device_id}"
-        falha_detectada = False
+        ultima_os = {"falha": None, "timestamp": datetime.min}
 
         while self.running:
             try:
@@ -103,39 +111,61 @@ class DashboardDispositivo(QWidget):
                     online = data.get("online", False)
                     falha = data.get("falha", "sem falha")
                     setor = data.get("setor", "")
+                    segmentos = data.get("segmentos", [])
                     ts = data.get("last_update", "")
+                    now = datetime.now()
 
-                    # 🔹 Atualiza status
-                    if online:
-                        msg = f"✅ {self.device_id} online | {falha} | setor={setor}"
-                        signals.update_status.emit(msg)
+                    # Atualiza ícone 🟢🟡
+                    signals.update_connection.emit(online)
 
-                        # 🔸 Cria OS somente se for uma falha "real"
-                        if falha.startswith("falha_") and falha != "falha_vibracao":
-                            signals.log_message.emit(f"🚨 Falha detectada: {falha} em {setor}")
+                    # Log básico
+                    msg = f"{'✅' if online else '⚠️'} {self.device_id} {'online' if online else 'offline'} | {falha} | SETOR={setor or 'none'} | online={online}"
+                    signals.update_status.emit(msg)
+                    signals.log_message.emit(f"[{now:%H:%M:%S}] FALHA → {falha} | SETOR={setor or 'none'} | online={online}")
 
-                            sucesso = criar_ordem_servico(
-                                local=f"{self.device_id} - {setor}",
-                                nivel=0,
-                                timestamp=ts or datetime.now().isoformat(),
-                                cfg=self.cfg,
-                                sid=self.sid
-                            )
+                    # ----------------------------------------------------------
+                    # 📌 Cria OS apenas para falhas reais
+                    # ----------------------------------------------------------
+                    if online and falha.startswith("falha_") and falha not in ["falha_vibracao", "alive"]:
+                        tempo_desde_ultima = (now - ultima_os["timestamp"]).total_seconds()
+                        if falha != ultima_os["falha"] or tempo_desde_ultima > 60:
+                            signals.log_message.emit(f"🚨 Falha detectada: {falha} em {setor or segmentos}")
+                            try:
+                                sucesso = criar_ordem_servico(
+                                    local=f"{self.device_id} - {setor or 'sem_setor'}",
+                                    nivel=0,
+                                    timestamp=ts or now.isoformat(),
+                                    cfg=self.cfg,
+                                    sid=self.sid
+                                )
+                                ultima_os.update({"falha": falha, "timestamp": now})
+                                if sucesso:
+                                    signals.log_message.emit("✅ OS criada automaticamente por falha.\n")
+                                else:
+                                    signals.log_message.emit("⚠️ Falha ao criar OS de falha.\n")
+                            except Exception as e:
+                                signals.log_message.emit(f"❌ Erro ao criar OS de falha: {e}")
 
-                            if sucesso:
-                                signals.log_message.emit("✅ OS criada automaticamente por falha.\n")
-                            else:
-                                signals.log_message.emit("⚠️ Falha ao criar OS.\n")
-
-                    else:
-                        msg = f"⚠️ {self.device_id} offline (sem dados)"
-                        signals.update_status.emit(msg)
+                    # ----------------------------------------------------------
+                    # 🚫 Nunca cria OS por desconexão → apenas loga
+                    # ----------------------------------------------------------
+                    if not online:
+                        signals.log_message.emit(f"[{now:%H:%M:%S}] ⚠️ {self.device_id} sem comunicação (sem OS criada).")
 
                 else:
                     signals.log_message.emit(f"⚠️ Erro HTTP {r.status_code} ao consultar status.")
+
             except Exception as e:
                 signals.log_message.emit(f"❌ Erro de conexão: {e}")
 
             time.sleep(5)
 
-
+    # -------------------------------------------------------------
+    def _update_connection_label(self, online: bool):
+        """Atualiza ícone de status visual"""
+        if online:
+            self.connection_label.setText("🟢 Dispositivo online")
+            self.connection_label.setStyleSheet("font-size: 16px; font-weight: bold; color: green;")
+        else:
+            self.connection_label.setText("🟡 Dispositivo offline (sem comunicação)")
+            self.connection_label.setStyleSheet("font-size: 16px; font-weight: bold; color: orange;")

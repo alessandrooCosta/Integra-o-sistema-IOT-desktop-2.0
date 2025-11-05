@@ -100,7 +100,7 @@ class MainWindow(QMainWindow):
         self.dashboard_simulador.running = False
         self.dashboard_dispositivo.running = False
         self.dashboard_simulador.btn_start.setText("▶️ Iniciar Simulador")
-        self.dashboard_dispositivo.btn_start.setText("▶️ Iniciar Monitoramento")
+      #  self.dashboard_dispositivo.btn_start.setText("▶️ Iniciar Monitoramento")
         self.dashboard_simulador.label_status.setText("💧 Aguardando leituras do sensor...")
         self.dashboard_dispositivo.label_status.setText("📡 Aguardando dados do dispositivo...")
         self.setCurrentWidget(self.login_widget)
