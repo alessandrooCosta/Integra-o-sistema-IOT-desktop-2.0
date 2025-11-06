@@ -105,7 +105,7 @@ class DashboardDispositivo(QWidget):
 
         while self.running:
             try:
-                r = requests.get(api_url, timeout=5)
+                r = requests.get(api_url, timeout=20)
                 if r.status_code == 200:
                     data = r.json()
                     online = data.get("online", False)
@@ -119,9 +119,9 @@ class DashboardDispositivo(QWidget):
                     signals.update_connection.emit(online)
 
                     # Log básico
-                    msg = f"{'✅' if online else '⚠️'} {self.device_id} {'online' if online else 'offline'} | {falha} | SETOR={setor or 'none'} | online={online}"
-                    signals.update_status.emit(msg)
-                    signals.log_message.emit(f"[{now:%H:%M:%S}] FALHA → {falha} | SETOR={setor or 'none'} | online={online}")
+                   # msg = f"{'✅' if online else '⚠️'} {self.device_id} {'online' if online else 'offline'} | {falha} | SETOR={setor or 'none'} | online={online}"
+                   # signals.update_status.emit(msg)
+                   # signals.log_message.emit(f"[{now:%H:%M:%S}] FALHA → {falha} | SETOR={setor or 'none'} | online={online}")
 
                     # ----------------------------------------------------------
                     # 📌 Cria OS apenas para falhas reais
@@ -150,7 +150,7 @@ class DashboardDispositivo(QWidget):
                     # 🚫 Nunca cria OS por desconexão → apenas loga
                     # ----------------------------------------------------------
                     if not online:
-                        signals.log_message.emit(f"[{now:%H:%M:%S}] ⚠️ {self.device_id} sem comunicação (sem OS criada).")
+                      signals.log_message.emit(f"[{now:%H:%M:%S}] ⚠️")
 
                 else:
                     signals.log_message.emit(f"⚠️ Erro HTTP {r.status_code} ao consultar status.")
