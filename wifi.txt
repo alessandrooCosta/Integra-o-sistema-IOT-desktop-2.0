@@ -1,109 +1,144 @@
 #include <WiFi.h>
 #include <HTTPClient.h>
-#include <Wire.h>
-#include <Adafruit_MPU6050.h>
-#include <Adafruit_Sensor.h>
-Adafruit_MPU6050 mpu;
-// -------- Configuração de Rede --------
-const char* ssid = "Wokwi-GUEST";
-const char* password = "";
-// ✅ Use HTTP (sem HTTPS) — funciona no Wokwi
-const char* serverUrl = "https://fastapi-6wmq.onrender.com/event";
-// -------- Pinos --------
-#define LED_VERDE 26
-#define LED_VERMELHO 27
-#define BOTAO_FALHA 25
-// -------- Controle --------
-enum Estado { NORMAL, FALHA, RECUPERADO };
-Estado estadoAtual = NORMAL;
-unsigned long ultimaFalha = 0;
-const unsigned long intervaloReenvio = 30000; // 30 segundos
-// -------- Protótipo --------
-void enviarEvento(String status);
+
+#define LED_G 26
+#define LED_R 27
+
+// Falhas
+#define BTN_FALHA_MEC 25
+#define BTN_FALHA_ELE 32
+#define BTN_FALHA_HID 33
+
+// Setores
+#define BTN_SETOR_A 19
+#define BTN_SETOR_B 23
+#define BTN_SETOR_C 5
+
+#define BTN_RESET 18
+
+const char* SSID = "Wokwi-GUEST";
+const char* PASSWORD = "";
+const char* SERVER_URL = "https://fastapi-6wmq.onrender.com/event";
+
+String falha = "";
+String setor = "";
+
+unsigned long ultimoPing = 0;
+
+void enviarEvento(const String& falha, const String& setor) {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("⚠️ Wi-Fi não conectado.");
+    return;
+  }
+
+  HTTPClient http;
+  http.begin(SERVER_URL);
+  http.addHeader("Content-Type", "application/json");
+
+  String payload = "{\"device\":\"Maquina_01\",\"falha\":\"" + falha +
+                   "\",\"setor\":\"" + setor + "\"}";
+  int code = http.POST(payload);
+  Serial.printf("📡 Enviado → Falha: %s | Setor: %s (HTTP %d)\n",
+                falha.c_str(), setor.c_str(), code);
+
+  http.end();
+}
+
+void enviarEventoEstabilidade() {
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println("⚠️ Wi-Fi não conectado.");
+    return;
+  }
+
+  HTTPClient http;
+  http.begin(SERVER_URL);
+  http.addHeader("Content-Type", "application/json");
+
+  String payload = "{\"device\":\"Maquina_01\",\"falha\":\"" + falha +
+                   "\",\"setor\":\"" + setor + "\"}";
+  int code = http.POST(payload);
+  Serial.printf("");
+
+  http.end();
+}
+
+
+
+void resetar() {
+  falha = "";
+  setor = "";
+  digitalWrite(LED_R, LOW);
+  digitalWrite(LED_G, HIGH);
+  Serial.println("♻️ Sistema resetado.\n");
+}
 
 void setup() {
   Serial.begin(115200);
-  pinMode(LED_VERDE, OUTPUT);
-  pinMode(LED_VERMELHO, OUTPUT);
-  pinMode(BOTAO_FALHA, INPUT_PULLUP);
+  delay(1000);
 
-  Serial.println("🔌 Conectando ao Wi-Fi...");
-  WiFi.begin(ssid, password, 6);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(300);
+  pinMode(LED_G, OUTPUT);
+  pinMode(LED_R, OUTPUT);
+  digitalWrite(LED_G, HIGH);
+
+  int botoes[] = {
+    BTN_FALHA_MEC, BTN_FALHA_ELE, BTN_FALHA_HID,
+    BTN_SETOR_A, BTN_SETOR_B, BTN_SETOR_C, BTN_RESET
+  };
+
+  for (int i = 0; i < 7; i++) {
+    pinMode(botoes[i], INPUT_PULLUP);
+  }
+
+  Serial.print("🔌 Conectando WiFi");
+  WiFi.begin(SSID, PASSWORD);
+
+  int tentativas = 0;
+  while (WiFi.status() != WL_CONNECTED && tentativas < 20) {
+    delay(250);
     Serial.print(".");
+    tentativas++;
   }
-  Serial.println("\n✅ Conectado ao Wi-Fi!");
-  Serial.println(WiFi.localIP());
 
-  Wire.begin(21, 22);
-  if (!mpu.begin()) {
-    Serial.println("❌ MPU6050 não encontrado!");
-    while (1);
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ WiFi conectado!");
+  } else {
+    Serial.println("\n❌ Falha na conexão WiFi.");
   }
-  Serial.println("✅ Sensor inicializado!");
-
-  enviarEvento("online");
 }
 
 void loop() {
-  sensors_event_t a, g, temp;
-  mpu.getEvent(&a, &g, &temp);
+  // Falhas
+  if (digitalRead(BTN_FALHA_MEC) == LOW) falha = "falha_mecanica";
+  if (digitalRead(BTN_FALHA_ELE) == LOW) falha = "falha_eletrica";
+  if (digitalRead(BTN_FALHA_HID) == LOW) falha = "falha_hidraulica";
 
-  float intensidade = sqrt(
-    a.acceleration.x * a.acceleration.x +
-    a.acceleration.y * a.acceleration.y +
-    a.acceleration.z * a.acceleration.z
-  );
+  // Setores
+  if (digitalRead(BTN_SETOR_A) == LOW) setor = "Setor_A";
+  if (digitalRead(BTN_SETOR_B) == LOW) setor = "Setor_B";
+  if (digitalRead(BTN_SETOR_C) == LOW) setor = "Setor_C";
 
-  bool falhaManual = digitalRead(BOTAO_FALHA) == LOW;
-  bool falhaDetectada = (falhaManual || intensidade < 9.5 || intensidade > 10.5);
-
-  if (falhaDetectada && estadoAtual == NORMAL) {
-    estadoAtual = FALHA;
-    digitalWrite(LED_VERDE, LOW);
-    digitalWrite(LED_VERMELHO, HIGH);
-    enviarEvento("falha");
-    ultimaFalha = millis();
+  // Envio combinado
+  if (falha.length() > 0 && setor.length() > 0) {
+    enviarEvento(falha, setor);
+    digitalWrite(LED_G, LOW);
+    digitalWrite(LED_R, HIGH);
+    falha = "";
+    setor = "";
+    delay(50);
   }
 
-  if (falhaDetectada && estadoAtual == FALHA &&
-      millis() - ultimaFalha > intervaloReenvio) {
-    enviarEvento("falha");
-    ultimaFalha = millis();
+  // Reset
+  if (digitalRead(BTN_RESET) == LOW) {
+    enviarEvento("reset", "todos");
+    resetar();
+    delay(50);
   }
 
-  if (!falhaDetectada && estadoAtual == FALHA) {
-    estadoAtual = RECUPERADO;
-    enviarEvento("ok");
-    digitalWrite(LED_VERDE, HIGH);
-    digitalWrite(LED_VERMELHO, LOW);
+   // 💓 Envia heartbeat a cada 10 segundos
+  if (millis() - ultimoPing > 5000) {
+    enviarEventoEstabilidade();
+    ultimoPing = millis();
   }
-  delay(500);
-}
 
-void enviarEvento(String status) {
-  if (WiFi.status() == WL_CONNECTED) {
-    HTTPClient http;
-    http.begin(serverUrl); // HTTP simples
-    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
-    http.addHeader("Content-Type", "application/json");
-
-    String payload = "{\"device\":\"MOTOR_A\",\"status\":\"" + status + "\"}";
-    int httpCode = http.POST(payload);
-
-    Serial.println("📡 Enviado: " + payload);
-    Serial.println("➡️ HTTP Code: " + String(httpCode));
-
-    if (httpCode > 0) {
-      String resposta = http.getString();
-      Serial.println("🔁 Resposta: " + resposta);
-    } else {
-      Serial.println("⚠️ Falha ao enviar para servidor!");
-    }
-
-    http.end();
-  } else {
-    Serial.println("🚫 Wi-Fi desconectado!");
-  }
+  delay(50);
 }
