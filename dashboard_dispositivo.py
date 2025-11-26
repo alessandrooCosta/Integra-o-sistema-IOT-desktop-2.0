@@ -2,6 +2,8 @@ import threading
 import time
 from datetime import datetime
 import requests
+import os
+import sys
 
 from PyQt6.QtCore import QObject, pyqtSignal, Qt
 from PyQt6.QtWidgets import (
@@ -10,6 +12,15 @@ from PyQt6.QtWidgets import (
 
 from soap_client import criar_ordem_servico
 
+def resource_path(relative_path):
+    """ Obtém o caminho absoluto para o recurso, funciona para dev e para PyInstaller """
+    try:
+        # PyInstaller cria uma pasta temporária e armazena o caminho em _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 class WorkerSignals(QObject):
     update_status = pyqtSignal(str)
@@ -57,7 +68,8 @@ class DashboardDispositivo(QWidget):
         self.setLayout(layout)
 
         # Estilo
-        with open("assets/login_style.qss", "r", encoding="utf-8") as f:
+        qss_path = resource_path("assets/login_style.qss")
+        with open(qss_path, "r", encoding="utf-8") as f:
             self.setStyleSheet(f.read())
 
     # -------------------------------------------------------------

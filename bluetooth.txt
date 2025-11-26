@@ -1,0 +1,163 @@
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+
+// Definições de Hardware
+#define LED_G 26 // LED Verde (Indica Repouso/Pronto)
+#define LED_R 27 // LED Vermelho (Indica Falha ou Reset Acionado)
+
+// Variáveis de Estado
+// A String de status é usada para notificar o App móvel sobre o estado do sistema.
+String currentStatusString = "Sistema Inicializado (Aguardando BLE)";
+
+// -------------------------------------------------------------
+// DECLARAÇÕES DE PROTÓTIPO E VARIÁVEIS GLOBAIS
+// -------------------------------------------------------------
+void resetar();
+
+// Configuração BLE (UUIDs padrão do projeto)
+#define SERVICE_UUID        "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID_STATUS "beb5483e-36e1-4688-b7f5-ea07361b26a8" // Leitura/Notificação do Status
+#define CHARACTERISTIC_UUID_CMD    "a7891234-7339-4d6f-871d-a026e7d1746f" // Escrita/Comando (Ex: RESET)
+
+BLEServer* pServer = NULL;
+BLECharacteristic* pStatusCharacteristic = NULL;
+BLECharacteristic* pCommandCharacteristic = NULL;
+bool deviceConnected = false;
+
+// -------------------------------------------------------------
+// FUNÇÕES DE UTILIDADE
+// -------------------------------------------------------------
+
+/**
+ * Reseta o sistema para o estado de repouso, acendendo o LED Verde.
+ */
+void resetar() {
+  digitalWrite(LED_R, LOW);
+  digitalWrite(LED_G, HIGH);
+  Serial.println("♻️ Sistema resetado.\n");
+  currentStatusString = "Status: OK (Sistema em Repouso).";
+}
+
+// -------------------------------------------------------------
+// CALLBACKS E LÓGICA BLE
+// -------------------------------------------------------------
+
+// Classe para gerenciar eventos de Conexão/Desconexão BLE
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+      Serial.println("🔗 BLE: Dispositivo conectado.");
+      currentStatusString = "Status: Conectado ao App.";
+    }
+
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+      Serial.println("💔 BLE: Dispositivo desconectado. Iniciando publicidade...");
+      currentStatusString = "Status: Publicidade Ativa (Desconectado).";
+      // Reinicia a publicidade para que o App possa reconectar
+      pServer->startAdvertising();
+    }
+};
+
+// Classe para gerenciar comandos de escrita (ex: Reset Remoto)
+class MyCommandCallbacks: public BLECharacteristicCallbacks {
+    void onWrite(BLECharacteristic *pCharacteristic) {
+      // Usamos 'auto' para evitar problemas de conversão de std::string em alguns compiladores.
+      auto rxValue = pCharacteristic->getValue();
+
+      if (rxValue.length() > 0) {
+        String cmd = String(rxValue.c_str());
+        Serial.printf("📝 BLE: Comando recebido: %s\n", cmd.c_str());
+
+        // Lógica de comando via BLE
+        if (cmd.equals("RESET")) {
+            digitalWrite(LED_G, LOW);
+            digitalWrite(LED_R, HIGH);
+            Serial.println("🔴 Comando RESET recebido via BLE.");
+            resetar(); // Executa o reset
+        } else {
+            Serial.println("⚠️ BLE: Comando desconhecido.");
+        }
+      }
+    }
+};
+
+/**
+ * Atualiza e notifica o App móvel via BLE sobre o status atual.
+ */
+void updateBleStatus() {
+    if (deviceConnected && pStatusCharacteristic) {
+        // Envia apenas a string de status atual
+        pStatusCharacteristic->setValue(currentStatusString.c_str());
+        pStatusCharacteristic->notify();
+    }
+}
+
+// -------------------------------------------------------------
+// FUNÇÃO DE SETUP BLE
+// -------------------------------------------------------------
+
+void setupBle() {
+    Serial.println("🚀 Configurando BLE...");
+    BLEDevice::init("Maquina_01_Monitor");
+    pServer = BLEDevice::createServer();
+    pServer->setCallbacks(new MyServerCallbacks());
+
+    // 1. Criação do Serviço
+    BLEService *pService = pServer->createService(SERVICE_UUID);
+
+    // 2. Criação da Característica de Status (Leitura e Notificação)
+    pStatusCharacteristic = pService->createCharacteristic(
+                                         CHARACTERISTIC_UUID_STATUS,
+                                         BLECharacteristic::PROPERTY_READ |
+                                         BLECharacteristic::PROPERTY_NOTIFY
+                                       );
+    pStatusCharacteristic->addDescriptor(new BLE2902());
+    pStatusCharacteristic->setValue("Status Inicial...");
+
+    // 3. Criação da Característica de Comando (Escrita)
+    pCommandCharacteristic = pService->createCharacteristic(
+                                         CHARACTERISTIC_UUID_CMD,
+                                         BLECharacteristic::PROPERTY_WRITE
+                                       );
+    pCommandCharacteristic->setCallbacks(new MyCommandCallbacks());
+
+    // Inicia o Serviço
+    pService->start();
+
+    // Inicia a Publicidade
+    BLEAdvertising *pAdvertising = BLEDevice::getAdvertising();
+    pAdvertising->addServiceUUID(SERVICE_UUID);
+    pAdvertising->setScanResponse(true);
+    // Configura um intervalo de publicidade lento para economizar energia
+    pAdvertising->setMinPreferred(0x06);
+    BLEDevice::startAdvertising();
+    Serial.println("✅ BLE: Publicidade iniciada. Procurável como 'Maquina_01_Monitor'");
+    currentStatusString = "Status: Publicidade Ativa (Desconectado).";
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+
+  // 1. Configuração de Pinos
+  pinMode(LED_G, OUTPUT);
+  pinMode(LED_R, OUTPUT);
+  digitalWrite(LED_G, HIGH); // Inicia com LED Verde Aceso (Repouso)
+
+  setupBle();
+}
+
+void loop() {
+  // Lógica de Falha/Reset pode ser adicionada aqui, mas no modo BLE puro,
+  // apenas a notificação do status de conexão é relevante.
+
+  // Notificação BLE (Tempo Real)
+  if (deviceConnected) {
+    updateBleStatus();
+  }
+
+  delay(100); // Pequeno delay no final do loop
+}

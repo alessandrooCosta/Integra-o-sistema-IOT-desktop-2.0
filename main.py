@@ -1,5 +1,6 @@
 from __future__ import annotations
 import sys
+import os
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QStackedWidget,
     QWidget, QVBoxLayout, QPushButton, QLabel
@@ -12,6 +13,16 @@ from dashboard_simulador import DashboardWindow
 from dashboard_dispositivo import DashboardDispositivo
 from dashboard_bluetooth import DashboardBluetooth
 
+def resource_path(relative_path):
+    """ Obtém o caminho absoluto para o recurso, funciona para dev e para PyInstaller """
+    try:
+        # PyInstaller cria uma pasta temporária e armazena o caminho em _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
+
 class MenuInicial(QWidget):
     def __init__(self, main_window):
         super().__init__()
@@ -21,20 +32,20 @@ class MenuInicial(QWidget):
         self.label = QLabel("Selecione o modo de operação:")
         self.label.setObjectName("menuTitle")
 
-        # 🔹 Botões principais
-        self.btn_simulador = QPushButton("💧 Dashboard Simulador (Teste Local)")
-        self.btn_dispositivo = QPushButton("📡 Dashboard ESP32 - Wi-Fi")
-        self.btn_bluetooth = QPushButton("🔷 Dashboard ESP32 - Bluetooth")
+        # Botões principais
+        self.btn_simulador = QPushButton("Teste Local")
+        self.btn_dispositivo = QPushButton("Conexão via Wi-Fi")
+        self.btn_bluetooth = QPushButton("Conexão via Bluetooth")
         self.btn_sair = QPushButton("Sair")
 
 
-        # 🔹 Conexões
+        # Conexões
         self.btn_simulador.clicked.connect(self.abrir_simulador)
         self.btn_dispositivo.clicked.connect(self.abrir_dispositivo)
         self.btn_bluetooth.clicked.connect(self.abrir_bluetooth)
         self.btn_sair.clicked.connect(self._on_sair_clicked)
 
-        # 🔹 Layout vertical centralizado
+        # Layout vertical centralizado
         layout = QVBoxLayout()
         layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.setSpacing(20)
@@ -46,8 +57,9 @@ class MenuInicial(QWidget):
         layout.addStretch()
         self.setLayout(layout)
 
-        # 🔹 Aplica QSS (mesmo estilo global)
-        with open("assets/login_style.qss", "r", encoding="utf-8") as f:
+        # Aplica QSS (mesmo estilo global)
+        qss_path = resource_path("assets/login_style.qss")
+        with open(qss_path, "r", encoding="utf-8") as f:
             self.setStyleSheet(f.read())
 
     def abrir_simulador(self):
@@ -99,10 +111,9 @@ class MainWindow(QMainWindow):
         """Retorna à tela de login e reseta dashboards."""
         self.dashboard_simulador.running = False
         self.dashboard_dispositivo.running = False
-        self.dashboard_simulador.btn_start.setText("▶️ Iniciar Simulador")
-      #  self.dashboard_dispositivo.btn_start.setText("▶️ Iniciar Monitoramento")
-        self.dashboard_simulador.label_status.setText("💧 Aguardando leituras do sensor...")
-        self.dashboard_dispositivo.label_status.setText("📡 Aguardando dados do dispositivo...")
+        self.dashboard_simulador.btn_start.setText("Iniciar Simulador")
+        self.dashboard_simulador.label_status.setText("Aguardando leituras do sensor...")
+        self.dashboard_dispositivo.label_status.setText("Aguardando dados do dispositivo...")
         self.setCurrentWidget(self.login_widget)
 
     def show_menu(self):

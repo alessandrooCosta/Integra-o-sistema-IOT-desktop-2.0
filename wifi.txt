@@ -62,8 +62,6 @@ void enviarEventoEstabilidade() {
   http.end();
 }
 
-
-
 void resetar() {
   falha = "";
   setor = "";

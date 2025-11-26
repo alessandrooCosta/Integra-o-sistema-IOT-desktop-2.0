@@ -1,10 +1,22 @@
 # ui_login.py
 from __future__ import annotations
+import os
+import sys
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton, QFormLayout, QVBoxLayout, QHBoxLayout, QSpacerItem, QSizePolicy, QMessageBox
 )
 from PyQt6.QtCore import Qt
 from eam_session_manager import EAMConfig, get_valid_session
+
+def resource_path(relative_path):
+    """ Obtém o caminho absoluto para o recurso, funciona para dev e para PyInstaller """
+    try:
+        # PyInstaller cria uma pasta temporária e armazena o caminho em _MEIPASS
+        base_path = sys._MEIPASS
+    except Exception:
+        base_path = os.path.abspath(".")
+
+    return os.path.join(base_path, relative_path)
 
 class LoginWidget(QWidget):
     def __init__(self, main_window):
@@ -55,7 +67,8 @@ class LoginWidget(QWidget):
         self.setWindowTitle("Configuração de Conexão - EAM")
 
         # 🔹 Aplica QSS
-        with open("assets/login_style.qss", "r", encoding="utf-8") as f:
+        qss_path = resource_path("assets/login_style.qss")
+        with open(qss_path, "r", encoding="utf-8") as f:
             self.setStyleSheet(f.read())
 
 
